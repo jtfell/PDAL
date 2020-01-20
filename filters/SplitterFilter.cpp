@@ -40,6 +40,8 @@
 
 #include <pdal/util/ProgramArgs.hpp>
 
+#define ORIGIN_SHIFT (3.1415926536 * 6378137)
+
 namespace pdal
 {
 
@@ -59,6 +61,7 @@ std::string SplitterFilter::getName() const { return s_info.name; }
 
 void SplitterFilter::addArgs(ProgramArgs& args)
 {
+    args.add("zoom", "Mercator zoom level (assumes EPSG:3857 projection). Not compatible with origin_x, origin_y, length and buffer", m_zoom, -1);
     args.add("length", "Edge length of cell", m_length, 1000.0);
     args.add("origin_x", "X origin for a cell", m_xOrigin,
         std::numeric_limits<double>::quiet_NaN());
@@ -77,6 +80,25 @@ void SplitterFilter::initialize()
         oss << "Buffer (" << m_buffer <<
             ") must be less than half of length (" << m_length << ")";
         throwError(oss.str());
+    }
+
+    if (m_zoom > -1) {
+      if (!isnan(m_xOrigin)) {
+        std::stringstream oss;
+        oss << "Zoom mode is not compatible with origin_x parameter";
+        throwError(oss.str());
+      }
+      if (!isnan(m_yOrigin)) {
+        std::stringstream oss;
+        oss << "Zoom mode is not compatible with origin_y parameter";
+        throwError(oss.str());
+      }
+      if (m_buffer != 0.0) {
+        std::stringstream oss;
+        oss << "Zoom mode is not compatible with buffer parameter";
+        throwError(oss.str());
+      }
+      // TODO: Check that length is not set?
     }
 }
 
@@ -125,20 +147,39 @@ PointViewSet SplitterFilter::run(PointViewPtr inView)
     return viewSet;
 }
 
+int SplitterFilter::calculateMercatorTileX(double x)
+{
+    double dx = ((pow(2, m_zoom - 1) * x) / (ORIGIN_SHIFT)) + pow(2, m_zoom - 1);
+    return floor(dx);
+}
+
+int SplitterFilter::calculateMercatorTileY(double y)
+{
+    double dy = -1 * ((pow(2, m_zoom - 1) * y) / (ORIGIN_SHIFT)) + pow(2, m_zoom - 1);
+    return floor(dy);
+}
 
 void SplitterFilter::processPoint(PointRef& point, PointAdder adder)
 {
     double x = point.getFieldAs<double>(Dimension::Id::X);
-    double dx = x - m_xOrigin;
-    int xpos = static_cast<int>(dx / m_length);
-    if (dx < 0)
-        xpos--;
-
     double y = point.getFieldAs<double>(Dimension::Id::Y);
-    double dy = y - m_yOrigin;
-    int ypos = static_cast<int>(dy / m_length);
-    if (dy < 0)
-        ypos--;
+
+    int xpos;
+    int ypos;
+    if (m_zoom > -1) {
+      xpos = calculateMercatorTileX(x);
+      ypos = calculateMercatorTileY(y);
+    } else {
+      double dx = x - m_xOrigin;
+      xpos = static_cast<int>(dx / m_length);
+      if (dx < 0)
+          xpos--;
+
+      double dy = y - m_yOrigin;
+      ypos = static_cast<int>(dy / m_length);
+      if (dy < 0)
+          ypos--;
+    }
 
     adder(point, xpos, ypos);
 
