@@ -1,7 +1,7 @@
 FROM pdal/alpinebase:latest as builder
 
 RUN    \
-    git clone https://github.com/PDAL/PDAL.git --branch 2.0-maintenance --single-branch pdal; \
+    git clone https://github.com/jtfell/PDAL.git --branch jtfell-release --single-branch pdal; \
     cd pdal; \
     mkdir build; \
     cd build; \

@@ -83,12 +83,12 @@ void SplitterFilter::initialize()
     }
 
     if (m_zoom > -1) {
-      if (!isnan(m_xOrigin)) {
+      if (!std::isnan(m_xOrigin)) {
         std::stringstream oss;
         oss << "Zoom mode is not compatible with origin_x parameter";
         throwError(oss.str());
       }
-      if (!isnan(m_yOrigin)) {
+      if (!std::isnan(m_yOrigin)) {
         std::stringstream oss;
         oss << "Zoom mode is not compatible with origin_y parameter";
         throwError(oss.str());
