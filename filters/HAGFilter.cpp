@@ -35,6 +35,7 @@
 #include "HAGFilter.hpp"
 
 #include <pdal/KDIndex.hpp>
+#include <pdal/GDALUtils.hpp>
 
 #include "private/delaunator.hpp"
 
@@ -195,11 +196,16 @@ void HAGFilter::addArgs(ProgramArgs& args)
 {
     args.add("count", "The number of points to fetch to determine the "
         "ground point [Default: 1].", m_count, point_count_t(1));
+    args.add("raster", "GDAL-readable raster to use for DEM (uses band 1, "
+        "starting from 1)", m_rasterName, "");
     args.add("max_distance", "Ground points beyond this distance will not "
         "influence nearest neighbor interpolation of height above ground."
         "[Default: None]", m_maxDistance);
     args.add("allow_extrapolation", "If true and count > 1, allow "
         "extrapolation [Default: true].", m_allowExtrapolation, true);
+    args.add("respect_ground_classification", "If true, set HAG of ground"
+        "-classified points to 0 rather than comparing Z value to raster DEM",
+        m_respectGroundClassification, true);
     args.add("delaunay", "Construct local Delaunay fans and infer heights "
         "from them. [Default: false].", m_delaunay, false);
 }
@@ -211,23 +217,69 @@ void HAGFilter::addDimensions(PointLayoutPtr layout)
 }
 
 
+void HAGFilter::ready(PointTableRef table)
+{
+    if (m_rasterName != "") {
+      gdal::registerDrivers();
+      m_raster.reset(new gdal::Raster(m_rasterName));
+      m_raster->open();
+    }
+}
+
 void HAGFilter::prepared(PointTableRef table)
 {
-    if (m_count == 0)
+    if (m_delaunay && m_rasterName != "")
+        throwError("'delaunay' option not compatible with 'raster' option");
+    if (m_count == 0 && m_rasterName == "")
         throwError("Option 'count' must be a positive integer.");
     if (m_delaunay && m_count < 3)
         throwError("Option 'count' must be at least 3 when using the "
             "'delaunay' option.");
 
     const PointLayoutPtr layout(table.layout());
-    if (!layout->hasDim(Dimension::Id::Classification))
+    if (m_rasterName == "" && !layout->hasDim(Dimension::Id::Classification))
         throwError("Missing Classification dimension in input PointView.");
 }
 
+void HAGFilter::set_HAG_from_raster(PointView& view)
+{
+    using namespace pdal::Dimension;
+    static std::vector<double> data;
+
+    for (PointId i = 0; i < view.size(); ++i)
+    {
+
+        // If "respect_ground_classification" option is set, all ground points get HAG of 0
+        if (m_respectGroundClassification && view.getFieldAs<uint8_t>(Id::Classification, i) == ClassLabel::Ground)
+        {
+            view.setField(Id::HeightAboveGround, i, 0);
+        }
+        else
+        {
+          double x = view.getFieldAs<double>(Id::X, i);
+          double y = view.getFieldAs<double>(Id::Y, i);
+          double z = view.getFieldAs<double>(Id::Z, i);
+
+          // If raster has a point at X, Y of pointcloud point, use it. Otherwise the HAG
+          // value is not set.
+          if (m_raster->read(x, y, data) == gdal::GDALError::None)
+          {
+              double hag = z - data[0];
+              view.setField(Dimension::Id::HeightAboveGround, i, hag);
+          }
+       }
+    }
+}
 
 void HAGFilter::filter(PointView& view)
 {
     using namespace pdal::Dimension;
+
+    // If using a raster as the DEM, check each point against it and write
+    // the HAG dimension
+    if (m_rasterName != "") {
+      return set_HAG_from_raster(view);
+    }
 
     PointViewPtr gView = view.makeNew();
     PointViewPtr ngView = view.makeNew();
