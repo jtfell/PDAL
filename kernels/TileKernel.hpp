@@ -63,6 +63,7 @@ private:
     std::string m_inputFile;
     std::string m_outputFile;
     double m_length;
+    double m_zoom;
     double m_xOrigin;
     double m_yOrigin;
     double m_buffer;

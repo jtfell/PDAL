@@ -67,6 +67,7 @@ void TileKernel::addSwitches(ProgramArgs& args)
     args.add("output,o", "Output filename template",
         m_outputFile).setPositional();
     args.add("length", "Edge length for cells", m_length, 1000.0);
+    args.add("zoom", "Mercator zoom level", m_zoom);
     args.add("origin_x", "Origin in X axis for cells", m_xOrigin,
         std::numeric_limits<double>::quiet_NaN());
     args.add("origin_y", "Origin in Y axis for cells", m_yOrigin,
@@ -103,6 +104,7 @@ int TileKernel::execute()
     Options opts;
     opts.add("length", m_length);
     opts.add("buffer", m_buffer);
+    opts.add("zoom", m_zoom);
     m_splitter.setOptions(opts);
     m_splitter.prepare(m_table);
 
