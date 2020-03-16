@@ -116,6 +116,7 @@ public:
     bool valid() const;
 
     std::string getWKT() const;
+    std::string getWKT1() const;
 
     /// Parse the string starting at position `pos` as a spatial reference.
     /// \param s    String to parse.
@@ -155,6 +156,8 @@ public:
     bool isGeographic() const;
     bool isGeocentric() const;
     bool isProjected() const;
+
+    std::vector<int> getAxisOrdering() const;
 
     int computeUTMZone(const BOX3D& box) const;
 

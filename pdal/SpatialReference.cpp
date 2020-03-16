@@ -352,6 +352,20 @@ bool SpatialReference::isProjected() const
     return output;
 }
 
+std::vector<int> SpatialReference::getAxisOrdering() const
+{
+    std::vector<int> output;
+    OGRScopedSpatialReference current = ogrCreateSrs(m_wkt);
+
+
+#if GDAL_VERSION_MAJOR >= 3
+    output = current.get()->GetDataAxisToSRSAxisMapping();
+#endif
+    return output;
+}
+
+
+
 int SpatialReference::calculateZone(double lon, double lat)
 {
     int zone = 0;
@@ -422,6 +436,36 @@ std::string SpatialReference::prettyWkt(const std::string& wkt)
     outWkt = buf;
     CPLFree(buf);
     return outWkt;
+}
+
+std::string SpatialReference::getWKT1() const
+{
+#if GDAL_VERSION_MAJOR < 3
+    return getWKT();
+#else
+    std::string wkt = getWKT();
+    if (wkt.empty())
+        return wkt;
+
+    OGRScopedSpatialReference srs = ogrCreateSrs(wkt);
+    std::string wkt1;
+    if (srs)
+    {
+        char *buf = nullptr;
+        const char* apszOptions[] = { "FORMAT=WKT1_GDAL", nullptr };
+
+        srs->exportToWkt(&buf, apszOptions);
+        if (buf)
+        {
+            wkt1 = buf;
+            CPLFree(buf);
+        }
+    }
+    if (wkt1.empty())
+        throw pdal_error("Couldn't convert spatial reference to WKT "
+            "version 1.");
+    return wkt1;
+#endif
 }
 
 
