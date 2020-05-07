@@ -243,7 +243,7 @@ PointViewSet SMRFilter::run(PointViewPtr view)
 
     m_srs = inlierView->spatialReference();
 
-    calculateBounds(*inlierView, m_bounds);
+    inlierView->calculateBounds(m_bounds);
     m_cols = static_cast<int>(
         ((m_bounds.maxx - m_bounds.minx) / m_args->m_cell) + 1);
     m_rows = static_cast<int>(
@@ -279,6 +279,7 @@ PointViewSet SMRFilter::run(PointViewPtr view)
     PointViewPtr outView = view->makeNew();
     // ignoredView is appended to the output untouched.
     outView->append(*ignoredView);
+    outView->append(*syntheticView);
     // inlierView is appended to the output, the only PointView whose
     // classifications may have been altered.
     outView->append(*inlierView);
